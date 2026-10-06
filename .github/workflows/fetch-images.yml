@@ -1,0 +1,39 @@
+name: Fetch stock images
+
+# Downloads image URLs listed in incoming/urls.txt into incoming/<name>.
+# Each line: <name> <url>   (lines starting with # are ignored)
+# Claude reviews the downloads, then renames approved files to <code>-NN.jpg.
+
+on:
+  push:
+    paths:
+      - 'incoming/urls.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download listed images
+        run: |
+          mkdir -p incoming
+          : > incoming/fetch-log.txt
+          grep -v '^#' incoming/urls.txt | while read -r name url; do
+            [ -z "$name" ] && continue
+            if curl -fsSL --max-time 60 -A "Mozilla/5.0" -o "incoming/$name" "$url"; then
+              echo "OK $name" >> incoming/fetch-log.txt
+            else
+              echo "FAIL $name $url" >> incoming/fetch-log.txt
+            fi
+          done
+      - name: Commit downloads
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add incoming
+          git commit -m "Fetch stock images" || echo "nothing to commit"
+          git push
